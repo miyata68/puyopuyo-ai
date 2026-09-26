@@ -15,6 +15,10 @@ path = "src/bin/train.rs"
 name = "self-play"
 path = "src/bin/self_play.rs"
 
+[[bin]]
+name = "export-web-model"
+path = "src/bin/export_web_model.rs"
+
 [features]
 default = ["gpu"]
 gpu = ["burn/cuda", "burn/fusion", "burn/autotune", "puyo-player/cuda"]
@@ -24,9 +28,10 @@ az-framework = { path = "../../az-framework" }
 puyo-core = { path = "../puyo-core" }
 puyo-player = { path = "../puyo-player", features = ["nn"] }
 puyo-nn = { path = "../puyo-nn" }
-burn = { version = "0.19", features = ["autodiff", "train"] }
+burn = { version = "0.19", features = ["autodiff", "train", "ndarray"] }
 half = "2.7"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 bincode = "1"
+rayon = "1.12.0"

@@ -233,6 +233,10 @@ fn main() {
     let iter_lr_stages: Option<Vec<(usize, f64)>> = args.iter().position(|a| a == "--iter-lr-stages")
         .map(|i| parse_lr_stages(&args[i + 1]));
 
+    let data_path = args.iter().position(|a| a == "--data-path")
+    .map(|i| args[i + 1].clone())
+    .unwrap_or_else(|| "data/training_data.bin".to_string());        
+
     std::fs::create_dir_all(&artifacts_dir).expect("Failed to create artifacts directory");
 
     let gc = GameConfig::new(cols, rows, num_colors);
@@ -255,7 +259,7 @@ fn main() {
         train_alphazero(data_dir.as_deref(), global_step, &model_path, &artifacts_dir, batch_size, accum_steps, num_steps, &lr_stages, iter_lr_stages.as_deref(), &gc, &net_config);
     } else {
         println!("Mode: Supervised (Policy CE only)");
-        train_supervised(&model_path, batch_size, &gc, &net_config);
+        train_supervised(&data_path, &model_path, batch_size, &gc, &net_config);
     }
 }
 
@@ -263,9 +267,9 @@ fn main() {
 // Supervised training (from generate-data)
 // ---------------------------------------------------------------------------
 
-fn train_supervised(model_path: &str, batch_size: usize, gc: &GameConfig, net_config: &PuyoNetConfig) {
+fn train_supervised(data_path: &str, model_path: &str, batch_size: usize, gc: &GameConfig, net_config: &PuyoNetConfig) {
     let device: <TrainBackend as Backend>::Device = Default::default();
-    let data_path = "data/training_data.bin";
+    // let data_path = "data/training_data.bin";
 
     let num_channels = gc.num_channels();
     let rows = gc.rows;

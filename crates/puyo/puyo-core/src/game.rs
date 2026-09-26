@@ -1,7 +1,8 @@
 use crate::board::{Board, ChainResult};
 use crate::config::GameConfig;
 use crate::piece::{FallingPiece, Orientation, Piece, Placement};
-use crate::rand::random_piece;
+// use crate::rand::random_piece;
+use crate::rand::{random_piece, seeded_piece};
 
 /// Phase of the game state machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +37,9 @@ pub struct GameState {
     pub max_chain: u32,
     pub phase: GamePhase,
     pub total_pieces: u32,
+
+    fixed_seed: Option<u64>,
+    next_piece_index: u64,
 }
 
 impl Default for GameState {
@@ -60,11 +64,41 @@ impl GameState {
             max_chain: 0,
             phase: GamePhase::Falling,
             total_pieces: 0,
+
+            fixed_seed: None,
+            next_piece_index: 0,
         };
 
         state.spawn_piece(current);
         state
     }
+
+    pub fn new_with_seed(config: GameConfig, seed: u64) -> Self {
+    let num_colors = config.num_colors;
+
+    let current = seeded_piece(seed, 0, num_colors);
+    let next = seeded_piece(seed, 1, num_colors);
+    let next_next = seeded_piece(seed, 2, num_colors);
+
+    let mut state = GameState {
+        board: Board::new(&config),
+        current_piece: None,
+        next_piece: next,
+        next_next_piece: next_next,
+        score: 0,
+        max_chain: 0,
+        phase: GamePhase::Falling,
+        total_pieces: 0,
+
+        fixed_seed: Some(seed),
+
+        // 0, 1, 2 はすでに生成済み
+        next_piece_index: 3,
+    };
+
+    state.spawn_piece(current);
+    state
+}
 
     /// Spawn a new piece at the top.
     fn spawn_piece(&mut self, piece: Piece) {
@@ -76,7 +110,23 @@ impl GameState {
         self.total_pieces += 1;
         let next = self.next_piece;
         self.next_piece = self.next_next_piece;
-        self.next_next_piece = random_piece(self.board.config.num_colors);
+        // self.next_next_piece = random_piece(self.board.config.num_colors);
+        self.next_next_piece = match self.fixed_seed {
+            Some(seed) => {
+                let piece = seeded_piece(
+                    seed,
+                    self.next_piece_index,
+                    self.board.config.num_colors,
+                );
+
+                self.next_piece_index += 1;
+                piece
+            }
+
+            None => {
+                random_piece(self.board.config.num_colors)
+            }
+        };
         self.spawn_piece(next);
     }
 
@@ -303,7 +353,18 @@ impl GameState {
     /// Restart the game.
     pub fn restart(&mut self) {
         let config = self.board.config.clone();
-        *self = GameState::new(config);
+
+        if let Some(seed) = self.fixed_seed {
+            *self = GameState::new_with_seed(config, seed);
+        } else {
+            *self = GameState::new(config);
+        }
+    }
+
+    pub fn restart_with_seed(&mut self, seed: u64) {
+        let config = self.board.config.clone();
+
+        *self = GameState::new_with_seed(config, seed);
     }
 
     /// Get current piece info for rendering: (axis_color, sat_color, col, row, orientation_index)

@@ -73,7 +73,13 @@ impl WasmGame {
             Err(_) => return false,
         };
         let model: PuyoNet<InferBackend> = config.init(&device).load_record(record);
-        self.evaluator = Box::new(NnEvaluator::new(model, device));
+        self.evaluator = Box::new(
+            NnEvaluator::with_game_config(
+                model,
+                device,
+                self.config,
+            )
+        );
         true
     }
 
@@ -91,11 +97,21 @@ impl WasmGame {
             Err(_) => return false,
         };
         let model: PuyoNet<InferBackend> = config.init(&device).load_record(record);
+
         let mcts_config = MctsConfig {
             num_simulations: num_simulations as usize,
             ..MctsConfig::default()
         };
-        self.evaluator = Box::new(NnEvaluator::new(model, device).with_mcts(mcts_config));
+
+        self.evaluator = Box::new(
+            NnEvaluator::with_game_config(
+                model,
+                device,
+                self.config,
+            )
+            .with_mcts(mcts_config)
+        );
+
         true
     }
 
@@ -330,5 +346,11 @@ impl WasmGame {
     #[wasm_bindgen]
     pub fn restart(&mut self) {
         self.state.restart();
+    }
+
+    /// Restart the game with a deterministic piece sequence.
+    #[wasm_bindgen]
+    pub fn restart_with_seed(&mut self, seed: u32) {
+        self.state.restart_with_seed(seed as u64);
     }
 }

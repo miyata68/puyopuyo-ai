@@ -27,7 +27,7 @@ use puyo_player::inference_server;
 
 const MODEL_PATH: &str = "artifacts/puyo_model";
 const DEFAULT_OUTPUT_PATH: &str = "data/alphazero_data.bin";
-const MAX_TURNS: u32 = 50;
+const MAX_TURNS: u32 = 80;
 const DEFAULT_GPU_THREADS: usize = 128;
 const DEFAULT_MAX_BATCH_SIZE: usize = 128;
 

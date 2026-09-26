@@ -144,21 +144,111 @@
         <div class="value" id="pieces-display">0</div>
       </div>
       <div class="panel">
+        <h3>ツモ Seed</h3>
+
+        <input
+          id="tsumo-seed"
+          type="number"
+          value="123456"
+          min="0"
+          max="4294967295"
+          step="1"
+          style="
+            width:100%;
+            padding:4px;
+            background:#1a1a2e;
+            color:#eee;
+            border:1px solid #444;
+            border-radius:4px;
+          "
+        >
+        <div style="
+          font-size:10px;
+          color:#888;
+          margin-top:4px;
+        ">
+          変更後 R で反映
+        </div>
+      </div>
+      <div class="panel">
         <h3>AI モード</h3>
-        <select id="ai-mode-select" style="width:100%;padding:4px;background:#1a1a2e;color:#eee;border:1px solid #444;border-radius:4px;">
+
+        <div style="margin-bottom:8px;">
+          <label
+            style="font-size:11px;color:#888;display:block;margin-bottom:3px;"
+          >
+            モデル
+          </label>
+
+          <div style="display:flex;gap:4px;">
+            <select
+              id="ai-model-select"
+              style="
+                flex:1;
+                min-width:0;
+                padding:4px;
+                background:#1a1a2e;
+                color:#eee;
+                border:1px solid #444;
+                border-radius:4px;
+                font-size:11px;
+              "
+            >
+              <option value="puyo_model.bin">
+                puyo_model.bin
+              </option>
+            </select>
+
+            <button
+              id="refresh-model-list"
+              type="button"
+              title="モデル一覧を更新"
+              style="
+                padding:3px 6px;
+                background:#1a1a2e;
+                color:#eee;
+                border:1px solid #444;
+                border-radius:4px;
+                cursor:pointer;
+              "
+            >
+              更新
+            </button>
+          </div>
+        </div>
+
+        <select
+          id="ai-mode-select"
+          style="width:100%;padding:4px;background:#1a1a2e;color:#eee;border:1px solid #444;border-radius:4px;"
+        >
           <option value="heuristic">ヒューリスティック</option>
           <option value="nn">ニューラルネット</option>
           <option value="nn-mcts">NN + MCTS</option>
         </select>
-        <div id="mcts-options" style="display:none;margin-top:4px;">
+
+        <div
+          id="mcts-options"
+          style="display:none;margin-top:4px;"
+        >
           <label style="font-size:11px;color:#888;">
             シミュレーション数:
-            <input id="mcts-simulations" type="number" value="50" min="10" max="400" step="10"
-                   style="width:60px;padding:2px;background:#1a1a2e;color:#eee;border:1px solid #444;border-radius:4px;">
+            <input
+              id="mcts-simulations"
+              type="number"
+              value="50"
+              min="10"
+              max="400"
+              step="10"
+              style="width:60px;padding:2px;background:#1a1a2e;color:#eee;border:1px solid #444;border-radius:4px;"
+            >
           </label>
         </div>
-        <div id="ai-mode-status" style="font-size:11px;color:#888;margin-top:4px;"></div>
-      </div>
+
+        <div
+          id="ai-mode-status"
+          style="font-size:11px;color:#888;margin-top:4px;"
+        ></div>
+      </div> 
       <div class="panel" id="ai-eval-panel" style="display:none;">
         <h3>AI評価</h3>
         <div style="font-size:12px;">
