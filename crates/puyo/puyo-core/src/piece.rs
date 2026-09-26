@@ -177,13 +177,7 @@ impl FallingPiece {
     }
 
     /// Check if a piece can occupy the given position.
-    fn can_occupy(
-        &self,
-        col: i32,
-        row: i32,
-        ori: Orientation,
-        board: &Board,
-    ) -> bool {
+    fn can_occupy(&self, col: i32, row: i32, ori: Orientation, board: &Board) -> bool {
         let cols = board.config.cols;
         let rows = board.config.rows;
         let (dc, dr) = ori.offset();
@@ -212,10 +206,10 @@ impl FallingPiece {
         }
 
         // Cell-level collision check (top hidden row (rows-1) isolated puyo protection)
-        if row_u < rows && board.get(col_u, row_u).is_color() {
+        if row_u < rows && board.get(col_u, row_u).is_occupied() {
             return false;
         }
-        if sr_u < rows && board.get(sc_u, sr_u).is_color() {
+        if sr_u < rows && board.get(sc_u, sr_u).is_occupied() {
             return false;
         }
 
@@ -227,7 +221,9 @@ impl FallingPiece {
 mod tests {
     use super::*;
 
-    fn cfg() -> GameConfig { GameConfig::default() }
+    fn cfg() -> GameConfig {
+        GameConfig::default()
+    }
 
     #[test]
     fn test_orientation_rotation() {

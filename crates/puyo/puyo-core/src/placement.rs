@@ -2,7 +2,7 @@ use crate::board::{Board, ChainResult};
 use crate::piece::{Orientation, Piece, Placement};
 
 /// Place a piece directly onto a board (no GameState overhead).
-fn place_piece_on_board(board: &mut Board, piece: &Piece, placement: &Placement) {
+pub(crate) fn place_piece_on_board(board: &mut Board, piece: &Piece, placement: &Placement) {
     let (dc, _dr) = placement.orientation.offset();
 
     match placement.orientation {
@@ -10,7 +10,7 @@ fn place_piece_on_board(board: &mut Board, piece: &Piece, placement: &Placement)
             board.drop_puyo(placement.col, piece.axis_color);
             let sat_col = (placement.col as i32 + dc) as usize;
             let sat_h = board.column_height(sat_col);
-            if sat_h < board.config.rows && !board.get(sat_col, sat_h).is_color() {
+            if sat_h < board.config.rows && !board.get(sat_col, sat_h).is_occupied() {
                 board.drop_puyo(sat_col, piece.satellite_color);
             }
         }
@@ -28,7 +28,11 @@ fn place_piece_on_board(board: &mut Board, piece: &Piece, placement: &Placement)
 }
 
 /// Simulate placing a piece on a board clone. Returns the resulting board and chain result.
-pub fn simulate_placement(board: &Board, piece: &Piece, placement: &Placement) -> (Board, ChainResult) {
+pub fn simulate_placement(
+    board: &Board,
+    piece: &Piece,
+    placement: &Placement,
+) -> (Board, ChainResult) {
     let mut b = board.clone();
     place_piece_on_board(&mut b, piece, placement);
     let chain_result = b.resolve_chains();
@@ -189,7 +193,9 @@ mod tests {
     use crate::board::PuyoColor;
     use crate::config::GameConfig;
 
-    fn cfg() -> GameConfig { GameConfig::default() }
+    fn cfg() -> GameConfig {
+        GameConfig::default()
+    }
 
     #[test]
     fn test_empty_board_placements() {
@@ -225,7 +231,7 @@ mod tests {
         let piece = Piece::new(PuyoColor::Red, PuyoColor::Blue);
         let placements = enumerate_placements(&board, &piece);
         let remaining = cols - 1;
-        let expected = remaining * 2 + (remaining - 1).max(0) + (remaining - 1).max(0);
+        let expected = remaining * 2 + remaining.saturating_sub(1) + remaining.saturating_sub(1);
         assert_eq!(placements.len(), expected);
     }
 
@@ -305,9 +311,8 @@ mod tests {
         let piece = Piece::new(PuyoColor::Red, PuyoColor::Blue);
         let placements = enumerate_placements(&board, &piece);
 
-        assert!(!placements.iter().any(
-            |p| p.col == cols - 1 && matches!(p.orientation, Orientation::North | Orientation::South)
-        ));
+        assert!(!placements.iter().any(|p| p.col == cols - 1
+            && matches!(p.orientation, Orientation::North | Orientation::South)));
 
         assert!(placements
             .iter()

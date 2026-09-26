@@ -74,31 +74,31 @@ impl GameState {
     }
 
     pub fn new_with_seed(config: GameConfig, seed: u64) -> Self {
-    let num_colors = config.num_colors;
+        let num_colors = config.num_colors;
 
-    let current = seeded_piece(seed, 0, num_colors);
-    let next = seeded_piece(seed, 1, num_colors);
-    let next_next = seeded_piece(seed, 2, num_colors);
+        let current = seeded_piece(seed, 0, num_colors);
+        let next = seeded_piece(seed, 1, num_colors);
+        let next_next = seeded_piece(seed, 2, num_colors);
 
-    let mut state = GameState {
-        board: Board::new(&config),
-        current_piece: None,
-        next_piece: next,
-        next_next_piece: next_next,
-        score: 0,
-        max_chain: 0,
-        phase: GamePhase::Falling,
-        total_pieces: 0,
+        let mut state = GameState {
+            board: Board::new(&config),
+            current_piece: None,
+            next_piece: next,
+            next_next_piece: next_next,
+            score: 0,
+            max_chain: 0,
+            phase: GamePhase::Falling,
+            total_pieces: 0,
 
-        fixed_seed: Some(seed),
+            fixed_seed: Some(seed),
 
-        // 0, 1, 2 はすでに生成済み
-        next_piece_index: 3,
-    };
+            // 0, 1, 2 はすでに生成済み
+            next_piece_index: 3,
+        };
 
-    state.spawn_piece(current);
-    state
-}
+        state.spawn_piece(current);
+        state
+    }
 
     /// Spawn a new piece at the top.
     fn spawn_piece(&mut self, piece: Piece) {
@@ -113,19 +113,13 @@ impl GameState {
         // self.next_next_piece = random_piece(self.board.config.num_colors);
         self.next_next_piece = match self.fixed_seed {
             Some(seed) => {
-                let piece = seeded_piece(
-                    seed,
-                    self.next_piece_index,
-                    self.board.config.num_colors,
-                );
+                let piece = seeded_piece(seed, self.next_piece_index, self.board.config.num_colors);
 
                 self.next_piece_index += 1;
                 piece
             }
 
-            None => {
-                random_piece(self.board.config.num_colors)
-            }
+            None => random_piece(self.board.config.num_colors),
         };
         self.spawn_piece(next);
     }
@@ -194,32 +188,7 @@ impl GameState {
 
     /// Place a piece on the board at the given placement.
     pub fn place_piece(&mut self, piece: &Piece, placement: &Placement) {
-        let (dc, _dr) = placement.orientation.offset();
-
-        match placement.orientation {
-            Orientation::North => {
-                // Axis first (bottom), then satellite on top
-                self.board.drop_puyo(placement.col, piece.axis_color);
-                let sat_col = (placement.col as i32 + dc) as usize;
-                let sat_h = self.board.column_height(sat_col);
-                // Defend against overwriting an isolated puyo at the top hidden row
-                if sat_h < self.board.config.rows && !self.board.get(sat_col, sat_h).is_color() {
-                    self.board.drop_puyo(sat_col, piece.satellite_color);
-                }
-            }
-            Orientation::South => {
-                // Satellite first (bottom), then axis on top
-                let sat_col = (placement.col as i32 + dc) as usize;
-                self.board.drop_puyo(sat_col, piece.satellite_color);
-                self.board.drop_puyo(placement.col, piece.axis_color);
-            }
-            Orientation::East | Orientation::West => {
-                // Side by side - drop both independently
-                self.board.drop_puyo(placement.col, piece.axis_color);
-                let sat_col = (placement.col as i32 + dc) as usize;
-                self.board.drop_puyo(sat_col, piece.satellite_color);
-            }
-        }
+        crate::placement::place_piece_on_board(&mut self.board, piece, placement);
     }
 
     /// Resolve chains after placing a piece.
@@ -352,7 +321,7 @@ impl GameState {
 
     /// Restart the game.
     pub fn restart(&mut self) {
-        let config = self.board.config.clone();
+        let config = self.board.config;
 
         if let Some(seed) = self.fixed_seed {
             *self = GameState::new_with_seed(config, seed);
@@ -362,7 +331,7 @@ impl GameState {
     }
 
     pub fn restart_with_seed(&mut self, seed: u64) {
-        let config = self.board.config.clone();
+        let config = self.board.config;
 
         *self = GameState::new_with_seed(config, seed);
     }
@@ -402,7 +371,9 @@ mod tests {
     use super::*;
     use crate::board::PuyoColor;
 
-    fn cfg() -> GameConfig { GameConfig::default() }
+    fn cfg() -> GameConfig {
+        GameConfig::default()
+    }
 
     #[test]
     fn test_new_game() {

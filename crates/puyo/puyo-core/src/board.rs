@@ -11,6 +11,7 @@ pub enum PuyoColor {
     Green = 2,
     Blue = 3,
     Yellow = 4,
+    Garbage = 5,
 }
 
 /// All color variants in order (excluding Empty). NUM_COLORS selects the active subset.
@@ -28,19 +29,31 @@ impl PuyoColor {
             2 => PuyoColor::Green,
             3 => PuyoColor::Blue,
             4 => PuyoColor::Yellow,
+            5 => PuyoColor::Garbage,
             _ => PuyoColor::Empty,
         }
     }
 
     pub fn is_color(self) -> bool {
-        self != PuyoColor::Empty
+        self.is_normal_color()
+    }
+
+    pub fn is_normal_color(self) -> bool {
+        matches!(self, Self::Red | Self::Green | Self::Blue | Self::Yellow)
+    }
+
+    pub fn is_garbage(self) -> bool {
+        self == Self::Garbage
+    }
+
+    pub fn is_occupied(self) -> bool {
+        self != Self::Empty
     }
 
     /// Returns the active color variants based on num_colors.
     pub fn active_colors(num_colors: usize) -> &'static [PuyoColor] {
         &ALL_COLOR_VARIANTS[..num_colors]
     }
-
 }
 
 pub use crate::config::MIN_GROUP_SIZE;
@@ -75,7 +88,7 @@ impl Board {
     pub fn new(config: &GameConfig) -> Self {
         Board {
             cells: vec![PuyoColor::Empty; config.cols * config.rows],
-            config: config.clone(),
+            config: *config,
         }
     }
 
@@ -93,12 +106,13 @@ impl Board {
         let rows = self.config.rows;
         let mut height = rows;
         for row in 0..rows {
-            if !self.get(col, row).is_color() {
+            if !self.get(col, row).is_occupied() {
                 height = row;
                 break;
             }
         }
-        let isolated = self.get(col, rows - 1).is_color() && !self.get(col, rows - 2).is_color();
+        let isolated =
+            self.get(col, rows - 1).is_occupied() && !self.get(col, rows - 2).is_occupied();
         (height, isolated)
     }
 
@@ -116,7 +130,10 @@ impl Board {
     /// Drop a puyo into a column. Returns the row it landed on.
     pub fn drop_puyo(&mut self, col: usize, color: PuyoColor) -> usize {
         let h = self.column_height(col);
-        assert!(h < self.config.rows, "drop_puyo: column {col} is full (height={h})");
+        assert!(
+            h < self.config.rows,
+            "drop_puyo: column {col} is full (height={h})"
+        );
         self.set(col, h, color);
         h
     }
@@ -131,7 +148,7 @@ impl Board {
             let mut write = 0;
             for read in 0..(rows - 1) {
                 let color = self.cells[base + read];
-                if color.is_color() {
+                if color.is_occupied() {
                     self.cells[base + write] = color;
                     if write != read {
                         self.cells[base + read] = PuyoColor::Empty;
@@ -210,7 +227,7 @@ impl Board {
     }
 
     /// Resolve one chain step. Modifies board in-place.
-    fn resolve_one_step(&mut self, chain_num: u32) -> Option<u32> {
+    pub fn resolve_one_step(&mut self, chain_num: u32) -> Option<u32> {
         let groups = self.find_clearable_groups();
         if groups.is_empty() {
             return None;
@@ -218,6 +235,17 @@ impl Board {
 
         for group in &groups {
             for &(col, row) in &group.cells {
+                for (dc, dr) in [(-1isize, 0isize), (1, 0), (0, -1), (0, 1)] {
+                    let (c, r) = (col as isize + dc, row as isize + dr);
+                    if c >= 0
+                        && r >= 0
+                        && (c as usize) < self.config.cols
+                        && (r as usize) < self.config.rows
+                        && self.get(c as usize, r as usize).is_garbage()
+                    {
+                        self.set(c as usize, r as usize, PuyoColor::Empty);
+                    }
+                }
                 self.set(col, row, PuyoColor::Empty);
             }
         }
@@ -226,6 +254,10 @@ impl Board {
         self.apply_gravity();
 
         Some(step_score)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.cells.iter().all(|c| !c.is_occupied())
     }
 
     /// Resolve all chains on the board. Modifies board in-place.

@@ -21,7 +21,11 @@ pub fn calculate_step_score(chain_num: u32, groups: &[Group]) -> u32 {
     }
 
     // Total number of puyos cleared
-    let total_cleared: u32 = groups.iter().map(|g| g.cells.len() as u32).sum();
+    let total_cleared: u32 = groups
+        .iter()
+        .filter(|g| g.color.is_normal_color())
+        .map(|g| g.cells.len() as u32)
+        .sum();
 
     // Chain power
     let cp_idx = (chain_num as usize)
@@ -32,7 +36,9 @@ pub fn calculate_step_score(chain_num: u32, groups: &[Group]) -> u32 {
     // Color bonus: count distinct colors
     let mut colors_seen = [false; 5]; // index by PuyoColor as u8 (max Yellow=4)
     for group in groups {
-        colors_seen[group.color as u8 as usize] = true;
+        if group.color.is_normal_color() {
+            colors_seen[group.color as usize] = true;
+        }
     }
     let num_colors = colors_seen.iter().filter(|&&c| c).count();
     let color_bonus = COLOR_BONUS[num_colors.min(COLOR_BONUS.len() - 1)];
@@ -40,6 +46,7 @@ pub fn calculate_step_score(chain_num: u32, groups: &[Group]) -> u32 {
     // Group bonus: sum over each group
     let group_bonus: u32 = groups
         .iter()
+        .filter(|g| g.color.is_normal_color())
         .map(|g| {
             let excess = g.cells.len().saturating_sub(MIN_GROUP_SIZE);
             GROUP_BONUS[excess.min(GROUP_BONUS.len() - 1)]
