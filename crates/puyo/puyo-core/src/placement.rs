@@ -71,6 +71,20 @@ fn compute_reachable_columns(board: &Board) -> Vec<bool> {
 /// 2. Each column involved must be reachable from the spawn column (SPAWN_COL).
 ///    A column with height >= ROWS-1 blocks traversal.
 pub fn enumerate_placements(board: &Board, piece: &Piece) -> Vec<Placement> {
+    enumerate_placements_impl(board, piece, false)
+}
+
+/// Tsu placements: double rotation permits South even between two blocked sides.
+/// Reachability, landing height, and same-color deduplication remain unchanged.
+pub fn enumerate_tsu_placements(board: &Board, piece: &Piece) -> Vec<Placement> {
+    enumerate_placements_impl(board, piece, true)
+}
+
+fn enumerate_placements_impl(
+    board: &Board,
+    piece: &Piece,
+    allow_double_rotation: bool,
+) -> Vec<Placement> {
     let cols = board.config.cols;
     let rows = board.config.rows;
     let reachable = compute_reachable_columns(board);
@@ -87,7 +101,7 @@ pub fn enumerate_placements(board: &Board, piece: &Piece) -> Vec<Placement> {
 
     // South: satellite on bottom, axis above. Axis at h+1 must be < rows-1.
     // Additionally, South requires rotating through East or West from spawn (North).
-    // If both adjacent columns have height >= rows-1 (or are walls), rotation is blocked.
+    // Tsu double rotation bypasses only the two-blocked-sides restriction.
     let south = (0..cols)
         .filter(|&col| {
             if !reachable[col] || board.column_height(col) + 2 > rows - 1 {
@@ -95,7 +109,7 @@ pub fn enumerate_placements(board: &Board, piece: &Piece) -> Vec<Placement> {
             }
             let left_blocked = col == 0 || board.column_height(col - 1) >= rows - 1;
             let right_blocked = col == cols - 1 || board.column_height(col + 1) >= rows - 1;
-            !(left_blocked && right_blocked)
+            allow_double_rotation || !(left_blocked && right_blocked)
         })
         .map(|col| Placement::new(col, Orientation::South));
 

@@ -1,4 +1,5 @@
 //! Deterministic random-vs-random diagnostic; tick-limit draws are harness-only.
+use puyo_core::board::PuyoColor;
 use puyo_core::pvp::{MatchResult, MatchState, PlayerId, PlayerPhase};
 fn random(x: &mut u64) -> u64 {
     *x = x
@@ -6,7 +7,29 @@ fn random(x: &mut u64) -> u64 {
         .wrapping_add(1442695040888963407);
     *x ^ (*x >> 29)
 }
+fn check_non_death_overflow() {
+    for seed in 0..100 {
+        let mut m = MatchState::new(seed);
+        for row in 0..14 {
+            m.players[0].board.set(0, row, PuyoColor::Garbage);
+        }
+        m.players[0].confirmed_garbage = 30;
+        let mut replay = m.clone();
+        let action = m.legal_actions(PlayerId::Player2)[0];
+        let event = m.step(None, Some(action)).expect("overflow redistribution");
+        assert_eq!(event, replay.step(None, Some(action)).unwrap());
+        assert_eq!(m, replay);
+        assert_eq!(event.players[0].dropped, 30);
+        assert_eq!(m.players[0].confirmed_garbage, 0);
+        assert_eq!(m.result(), MatchResult::Ongoing);
+        for col in 1..6 {
+            assert_eq!(m.players[0].board.column_height(col), 6);
+        }
+    }
+    println!("OVERFLOW checks=100 ongoing=100 redistributed_without_loss=true deterministic=true");
+}
 fn main() {
+    check_non_death_overflow();
     let mut wins = [0u32; 3];
     let mut limited = 0;
     let mut attack = 0;

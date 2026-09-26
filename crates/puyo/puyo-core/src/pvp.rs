@@ -2,7 +2,7 @@
 use crate::board::{Board, PuyoColor};
 use crate::config::GameConfig;
 use crate::piece::{Piece, Placement};
-use crate::placement::{enumerate_placements, place_piece_on_board};
+use crate::placement::{enumerate_tsu_placements, place_piece_on_board};
 use crate::rand::seeded_piece;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -193,12 +193,12 @@ impl MatchState {
         let p = &self.players[player.index()];
         self.result == MatchResult::Ongoing && p.phase == PlayerPhase::Ready && !p.dropping()
     }
-    /// Uses the existing canonical (same-color deduplicated) action space.
+    /// Tsu double rotation with the existing same-color deduplication.
     pub fn legal_actions(&self, player: PlayerId) -> Vec<Placement> {
         if !self.requires_action(player) {
             return Vec::new();
         }
-        enumerate_placements(
+        enumerate_tsu_placements(
             &self.players[player.index()].board,
             &self.current_piece(player),
         )
@@ -287,7 +287,6 @@ fn local_step(
             let count = p
                 .confirmed_garbage
                 .min(u64::from(rules.max_garbage_per_drop)) as u32;
-            p.confirmed_garbage -= u64::from(count);
             let mut columns = [0, 1, 2, 3, 4, 5];
             let mut rng = mix(seed
                 ^ mix(tick)
@@ -297,16 +296,30 @@ fn local_step(
                 rng = mix(rng.wrapping_add(0x9e3779b97f4a7c15));
                 columns.swap(j, (rng % (j as u64 + 1)) as usize);
             }
+            // Preserve the original per-column allocation before redistributing
+            // overflow, so a full column does not steal another column's share.
             for n in 0..count {
-                let col = columns[n as usize % 6];
-                let row = p.board.column_height(col);
-                if row >= p.board.config.rows || p.board.get(col, row).is_occupied() {
-                    p.phase = PlayerPhase::Dead; // overflow, never overwrite a cell
-                } else {
-                    p.board.drop_puyo(col, PuyoColor::Garbage);
+                if try_drop_garbage(&mut p.board, columns[n as usize % 6]) {
                     event.dropped += 1;
                 }
             }
+            // Give each available column at most one extra per shuffled sweep.
+            // Stop on exhausted capacity; undropped garbage stays confirmed.
+            while event.dropped < count {
+                let before = event.dropped;
+                for &col in &columns {
+                    if event.dropped == count {
+                        break;
+                    }
+                    if try_drop_garbage(&mut p.board, col) {
+                        event.dropped += 1;
+                    }
+                }
+                if event.dropped == before {
+                    break;
+                }
+            }
+            p.confirmed_garbage -= u64::from(event.dropped);
             p.garbage_drop_count = p.garbage_drop_count.wrapping_add(1);
             p.garbage_drop_due = false;
         }
@@ -345,6 +358,16 @@ fn local_step(
         p.phase = PlayerPhase::Dead;
     }
 }
+/// Returns false for a full column without changing the board or death state.
+fn try_drop_garbage(board: &mut Board, col: usize) -> bool {
+    let row = board.column_height(col);
+    if row >= board.config.rows || board.get(col, row).is_occupied() {
+        return false;
+    }
+    board.drop_puyo(col, PuyoColor::Garbage);
+    true
+}
+
 fn resolve_attacks(players: &mut [PlayerState; 2], events: &mut [PlayerStepResult; 2]) {
     let mut remaining = [events[0].generated_attack, events[1].generated_attack];
     for i in 0..2 {

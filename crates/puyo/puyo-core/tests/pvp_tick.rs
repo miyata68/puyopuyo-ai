@@ -1,6 +1,7 @@
 use puyo_core::board::{Board, Group, PuyoColor as C};
 use puyo_core::config::GameConfig;
-use puyo_core::piece::{Orientation, Placement};
+use puyo_core::piece::{Orientation, Piece, Placement};
+use puyo_core::placement::{enumerate_placements, enumerate_tsu_placements};
 use puyo_core::pvp::*;
 use PlayerId::{Player1 as P1, Player2 as P2};
 fn board() -> Board {
@@ -226,14 +227,24 @@ fn simultaneous_death_is_draw() {
     assert_eq!(m.outcome_for(P1), Some(0));
 }
 #[test]
-fn full_column_overflow_is_death_not_panic() {
+fn full_non_death_column_does_not_immediately_kill() {
     let mut m = MatchState::new(3);
     for r in 0..14 {
         m.players[0].board.set(0, r, C::Garbage);
     }
     m.players[0].confirmed_garbage = 6;
-    advance(&mut m);
-    assert_eq!(m.result(), MatchResult::Player2Win);
+    let e = advance(&mut m);
+    assert_eq!(m.result(), MatchResult::Ongoing);
+    assert_eq!(m.players[0].phase, PlayerPhase::Ready);
+    assert_eq!(e.players[0].dropped, 6);
+    assert_eq!(m.players[0].confirmed_garbage, 0);
+    assert_eq!(m.players[0].board.column_height(0), 14);
+    let heights: Vec<_> = (1..6)
+        .map(|c| m.players[0].board.column_height(c))
+        .collect();
+    assert_eq!(heights.iter().sum::<usize>(), 6);
+    assert_eq!(heights.iter().filter(|&&h| h == 2).count(), 1);
+    assert_eq!(heights.iter().filter(|&&h| h == 1).count(), 4);
 }
 #[test]
 fn invalid_actions_are_atomic_and_explicit() {
@@ -357,4 +368,128 @@ fn identical_state_and_actions_replay_whole_matches() {
         }
         assert_ne!(a.result(), MatchResult::Ongoing);
     }
+}
+
+#[test]
+fn redistribution_is_deterministic_balanced_and_capped() {
+    for seed in 0..30 {
+        for id in [P1, P2] {
+            let mut a = MatchState::new(seed);
+            a.tick = 19;
+            let p = &mut a.players[id.index()];
+            p.garbage_drop_count = 7;
+            for col in [0, 5] {
+                for row in 0..14 {
+                    p.board.set(col, row, C::Garbage);
+                }
+            }
+            p.confirmed_garbage = 60;
+            let mut b = a.clone();
+            assert_eq!(advance(&mut a), advance(&mut b));
+            assert_eq!(a, b);
+            assert_eq!(a.result(), MatchResult::Ongoing);
+            let p = &a.players[id.index()];
+            assert_eq!(p.confirmed_garbage, 30);
+            let heights: Vec<_> = (1..5).map(|c| p.board.column_height(c)).collect();
+            assert_eq!(heights.iter().sum::<usize>(), 30);
+            assert_eq!(heights.iter().filter(|&&h| h == 7).count(), 2);
+            assert_eq!(heights.iter().filter(|&&h| h == 8).count(), 2);
+            assert!(a.requires_action(id));
+        }
+    }
+}
+
+#[test]
+fn exhausted_capacity_keeps_undropped_garbage_and_uses_death_cell() {
+    let mut m = MatchState::new(3);
+    for col in 0..6 {
+        for row in 0..if col == 2 { 11 } else { 14 } {
+            m.players[0].board.set(col, row, C::Garbage);
+        }
+    }
+    assert!(!m.players[0].board.is_game_over());
+    m.players[0].confirmed_garbage = 30;
+    let mut replay = m.clone();
+    let e = advance(&mut m);
+    assert_eq!(e, advance(&mut replay));
+    assert_eq!(m, replay);
+    assert_eq!(e.players[0].dropped, 3);
+    assert_eq!(m.players[0].confirmed_garbage, 27);
+    assert!(m.players[0].board.is_game_over());
+    assert_eq!(m.result(), MatchResult::Player2Win);
+}
+
+fn trapped_board() -> Board {
+    let mut b = board();
+    for col in [1, 3] {
+        for row in 0..13 {
+            b.set(col, row, C::Garbage);
+        }
+    }
+    b
+}
+
+#[test]
+fn double_rotation_is_tsu_only_and_preserves_other_actions() {
+    let b = trapped_board();
+    let piece = Piece::new(C::Red, C::Blue);
+    let south = Placement::new(2, Orientation::South);
+    let solo = enumerate_placements(&b, &piece);
+    let tsu = enumerate_tsu_placements(&b, &piece);
+    assert!(!solo.contains(&south));
+    assert!(tsu.contains(&south));
+    assert_eq!(
+        tsu.into_iter().filter(|p| *p != south).collect::<Vec<_>>(),
+        solo
+    );
+    let same_color = Piece::new(C::Red, C::Red);
+    assert_eq!(
+        enumerate_tsu_placements(&b, &same_color),
+        enumerate_placements(&b, &same_color)
+    );
+}
+
+#[test]
+fn pvp_accepts_double_rotation_and_places_satellite_below_axis() {
+    for id in [P1, P2] {
+        let mut m = MatchState::new(0);
+        // Find an existing deterministic mixed-color piece, without overriding RNG.
+        let index = (0..100)
+            .find(|&i| {
+                let piece = m.piece_at(i);
+                piece.axis_color != piece.satellite_color
+            })
+            .unwrap();
+        m.players[id.index()].piece_index = index;
+        m.players[id.index()].board = trapped_board();
+        let piece = m.current_piece(id);
+        let south = Placement::new(2, Orientation::South);
+        assert!(m.legal_actions(id).contains(&south));
+        let mut actions = [action(&m, P1), action(&m, P2)];
+        actions[id.index()] = Some(south);
+        let e = m.step(actions[0], actions[1]).unwrap();
+        assert!(e.players[id.index()].placed);
+        assert_eq!(m.players[id.index()].piece_index, index + 1);
+        assert_eq!(m.players[id.index()].board.get(2, 0), piece.satellite_color);
+        assert_eq!(m.players[id.index()].board.get(2, 1), piece.axis_color);
+        assert_eq!(m.result(), MatchResult::Ongoing);
+    }
+}
+
+#[test]
+fn double_rotation_still_requires_reachability_and_landing_space() {
+    let mut b = trapped_board();
+    let piece = Piece::new(C::Red, C::Blue);
+    let south = Placement::new(2, Orientation::South);
+    // col0 is empty but unreachable across the 13-high wall at col1.
+    assert!(!enumerate_tsu_placements(&b, &piece).contains(&Placement::new(0, Orientation::South)));
+    for row in 0..11 {
+        b.set(2, row, C::Garbage);
+    }
+    assert!(enumerate_tsu_placements(&b, &piece).contains(&south));
+    // Preserve the existing restriction against landing the axis at row13.
+    b.set(2, 11, C::Garbage);
+    assert!(!enumerate_tsu_placements(&b, &piece).contains(&south));
+    b.set(2, 12, C::Garbage);
+    assert!(!enumerate_tsu_placements(&b, &piece).contains(&south));
 }
