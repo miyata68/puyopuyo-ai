@@ -4,18 +4,15 @@ use puyo_core::state::PuyoState;
 
 use az_framework::eval::Evaluator;
 
-use puyo_core::placement::{enumerate_placements, simulate_placement};
 use crate::puyo_game::PuyoGame;
+use puyo_core::placement::{enumerate_placements, simulate_placement};
 
 /// Simulation-based evaluator: drops virtual puyos to estimate expected chain score.
 pub struct SimulationEvaluator;
 
 impl Evaluator<PuyoGame> for SimulationEvaluator {
     /// BFS順で全深度の盤面を評価し、最高スコアの1手目を返す。
-    fn find_best_move(
-        &self,
-        state: &PuyoState,
-    ) -> Option<(puyo_core::piece::Placement, f64)> {
+    fn find_best_move(&self, state: &PuyoState) -> Option<(puyo_core::piece::Placement, f64)> {
         let board = &state.board;
         let current = &state.current;
         let next = &state.next;
@@ -91,7 +88,9 @@ mod tests {
     use puyo_core::config::GameConfig;
     use puyo_core::piece::Piece;
 
-    fn cfg() -> GameConfig { GameConfig::default() }
+    fn cfg() -> GameConfig {
+        GameConfig::default()
+    }
 
     fn make_state(board: Board, current: Piece, next: Piece) -> PuyoState {
         PuyoState {

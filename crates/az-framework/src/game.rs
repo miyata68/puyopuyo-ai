@@ -43,7 +43,10 @@ pub trait Game: Clone + Send + Sync + 'static {
     // --- 状態遷移 ---
 
     /// アクションを適用し、(新状態, 結果) を返す
-    fn apply_action(state: &Self::State, action: &Self::Action) -> (Self::State, Self::ActionResult);
+    fn apply_action(
+        state: &Self::State,
+        action: &Self::Action,
+    ) -> (Self::State, Self::ActionResult);
 
     /// 結果から即時報酬を取得
     fn reward(result: &Self::ActionResult) -> f32;

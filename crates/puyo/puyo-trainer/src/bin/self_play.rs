@@ -12,18 +12,18 @@ use burn::record::{BinFileRecorder, FullPrecisionSettings, HalfPrecisionSettings
 
 use az_framework::game::Game;
 use puyo_core::config::GameConfig;
+use puyo_core::game::{GamePhase, GameState};
 use puyo_core::rand::time_seed;
+use puyo_core::state::PuyoState;
+use puyo_nn::model::{PuyoNet, PuyoNetConfig};
 use puyo_player::mcts::{mcts_search, mcts_search_batched, InferenceProvider};
 use puyo_player::nn_eval::MctsConfig;
 use puyo_player::puyo_game::PuyoGame;
-use puyo_core::game::{GamePhase, GameState};
-use puyo_core::state::PuyoState;
-use puyo_nn::model::{PuyoNet, PuyoNetConfig};
 use puyo_trainer::data::{AlphaZeroDataset, AlphaZeroSample};
 
 use burn::backend::Cuda;
-use puyo_player::nn_eval::PuyoGameModel;
 use puyo_player::inference_server;
+use puyo_player::nn_eval::PuyoGameModel;
 
 const MODEL_PATH: &str = "artifacts/puyo_model";
 const DEFAULT_OUTPUT_PATH: &str = "data/alphazero_data.bin";
@@ -95,19 +95,27 @@ fn parse_args() -> Args {
         match args[i].as_str() {
             "--games" => {
                 i += 1;
-                result.num_games = next_val(i, "--games").parse().expect("--games requires integer");
+                result.num_games = next_val(i, "--games")
+                    .parse()
+                    .expect("--games requires integer");
             }
             "--simulations" => {
                 i += 1;
-                result.num_simulations = next_val(i, "--simulations").parse().expect("--simulations requires integer");
+                result.num_simulations = next_val(i, "--simulations")
+                    .parse()
+                    .expect("--simulations requires integer");
             }
             "--c-puct-init" => {
                 i += 1;
-                result.c_puct_init = next_val(i, "--c-puct-init").parse().expect("--c-puct-init requires float");
+                result.c_puct_init = next_val(i, "--c-puct-init")
+                    .parse()
+                    .expect("--c-puct-init requires float");
             }
             "--c-puct-base" => {
                 i += 1;
-                result.c_puct_base = next_val(i, "--c-puct-base").parse().expect("--c-puct-base requires float");
+                result.c_puct_base = next_val(i, "--c-puct-base")
+                    .parse()
+                    .expect("--c-puct-base requires float");
             }
             "--m" => {
                 i += 1;
@@ -115,11 +123,15 @@ fn parse_args() -> Args {
             }
             "--c-visit" => {
                 i += 1;
-                result.c_visit = next_val(i, "--c-visit").parse().expect("--c-visit requires float");
+                result.c_visit = next_val(i, "--c-visit")
+                    .parse()
+                    .expect("--c-visit requires float");
             }
             "--gamma" => {
                 i += 1;
-                result.gamma = next_val(i, "--gamma").parse().expect("--gamma requires float");
+                result.gamma = next_val(i, "--gamma")
+                    .parse()
+                    .expect("--gamma requires float");
             }
             "--output" => {
                 i += 1;
@@ -131,55 +143,85 @@ fn parse_args() -> Args {
             }
             "--threads" => {
                 i += 1;
-                result.threads = Some(next_val(i, "--threads").parse().expect("--threads requires integer"));
+                result.threads = Some(
+                    next_val(i, "--threads")
+                        .parse()
+                        .expect("--threads requires integer"),
+                );
             }
             "--batch-size" => {
                 i += 1;
-                result.batch_size = Some(next_val(i, "--batch-size").parse().expect("--batch-size requires integer"));
+                result.batch_size = Some(
+                    next_val(i, "--batch-size")
+                        .parse()
+                        .expect("--batch-size requires integer"),
+                );
             }
             "--num-leaves" => {
                 i += 1;
-                result.num_leaves = next_val(i, "--num-leaves").parse().expect("--num-leaves requires integer");
+                result.num_leaves = next_val(i, "--num-leaves")
+                    .parse()
+                    .expect("--num-leaves requires integer");
             }
             "--min-chain" => {
                 i += 1;
-                result.min_chain = next_val(i, "--min-chain").parse().expect("--min-chain requires integer");
+                result.min_chain = next_val(i, "--min-chain")
+                    .parse()
+                    .expect("--min-chain requires integer");
             }
             "--cols" => {
                 i += 1;
-                result.cols = next_val(i, "--cols").parse().expect("--cols requires integer");
+                result.cols = next_val(i, "--cols")
+                    .parse()
+                    .expect("--cols requires integer");
             }
             "--rows" => {
                 i += 1;
-                result.rows = next_val(i, "--rows").parse().expect("--rows requires integer");
+                result.rows = next_val(i, "--rows")
+                    .parse()
+                    .expect("--rows requires integer");
             }
             "--num-colors" => {
                 i += 1;
-                result.num_colors = next_val(i, "--num-colors").parse().expect("--num-colors requires integer");
+                result.num_colors = next_val(i, "--num-colors")
+                    .parse()
+                    .expect("--num-colors requires integer");
             }
             "--residual-channels" => {
                 i += 1;
-                result.residual_channels = next_val(i, "--residual-channels").parse().expect("--residual-channels requires integer");
+                result.residual_channels = next_val(i, "--residual-channels")
+                    .parse()
+                    .expect("--residual-channels requires integer");
             }
             "--num-blocks" => {
                 i += 1;
-                result.num_blocks = next_val(i, "--num-blocks").parse().expect("--num-blocks requires integer");
+                result.num_blocks = next_val(i, "--num-blocks")
+                    .parse()
+                    .expect("--num-blocks requires integer");
             }
             "--policy-conv-channels" => {
                 i += 1;
-                result.policy_conv_channels = next_val(i, "--policy-conv-channels").parse().expect("--policy-conv-channels requires integer");
+                result.policy_conv_channels = next_val(i, "--policy-conv-channels")
+                    .parse()
+                    .expect("--policy-conv-channels requires integer");
             }
             "--value-conv-channels" => {
                 i += 1;
-                result.value_conv_channels = next_val(i, "--value-conv-channels").parse().expect("--value-conv-channels requires integer");
+                result.value_conv_channels = next_val(i, "--value-conv-channels")
+                    .parse()
+                    .expect("--value-conv-channels requires integer");
             }
             "--value-hidden" => {
                 i += 1;
-                result.value_hidden = next_val(i, "--value-hidden").parse().expect("--value-hidden requires integer");
+                result.value_hidden = next_val(i, "--value-hidden")
+                    .parse()
+                    .expect("--value-hidden requires integer");
             }
             "--film-hidden" => {
                 i += 1;
-                result.film_hidden = next_val(i, "--film-hidden").parse().expect("--film-hidden requires integer");
+                result.film_hidden = next_val(i, "--film-hidden")
+                    .parse()
+                    .expect("--film-hidden requires integer");
             }
             "--fp16" => {
                 result.fp16 = true;
@@ -207,11 +249,7 @@ struct GameResult {
 }
 
 /// Play one self-play game and return training samples.
-fn play_one_game(
-    provider: &dyn InferenceProvider,
-    args: &Args,
-    gc: &GameConfig,
-) -> GameResult {
+fn play_one_game(provider: &dyn InferenceProvider, args: &Args, gc: &GameConfig) -> GameResult {
     let cols = gc.cols;
     let mut game = GameState::new(gc.clone());
     let mut move_records: Vec<MoveRecord> = Vec::with_capacity(MAX_TURNS as usize);
@@ -277,8 +315,7 @@ fn play_one_game(
         value_targets[num_moves - 1] =
             move_records[num_moves - 1].reward + args.gamma * bootstrap_value;
         for i in (0..num_moves - 1).rev() {
-            value_targets[i] =
-                move_records[i].reward + args.gamma * value_targets[i + 1];
+            value_targets[i] = move_records[i].reward + args.gamma * value_targets[i + 1];
         }
 
         for (i, record) in move_records.into_iter().enumerate() {
@@ -325,9 +362,7 @@ fn load_model<B: Backend, S: burn::record::PrecisionSettings>(
     let path = model_path.to_string();
     let load_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let recorder = BinFileRecorder::<S>::new();
-        config
-            .init::<B>(device)
-            .load_file(&path, &recorder, device)
+        config.init::<B>(device).load_file(&path, &recorder, device)
     }));
     match load_result {
         Ok(Ok(m)) => {
@@ -358,7 +393,10 @@ fn run_with_backend<B: Backend + 'static>(
     net_config: &PuyoNetConfig,
 ) {
     let precision_label = if fp16 { "f16" } else { "f32" };
-    println!("Backend: Cuda (GPU, {}) — Gumbel MCTS self-play (batched)", precision_label);
+    println!(
+        "Backend: Cuda (GPU, {}) — Gumbel MCTS self-play (batched)",
+        precision_label
+    );
     let device: B::Device = Default::default();
 
     let model = if fp16 {
@@ -369,7 +407,10 @@ fn run_with_backend<B: Backend + 'static>(
 
     let num_threads = args.threads.unwrap_or(DEFAULT_GPU_THREADS);
     let batch_size = args.batch_size.unwrap_or(DEFAULT_MAX_BATCH_SIZE);
-    println!("Using {} game threads, max_batch_size={}", num_threads, batch_size);
+    println!(
+        "Using {} game threads, max_batch_size={}",
+        num_threads, batch_size
+    );
 
     let client = inference_server::start_inference_server(
         PuyoGameModel::with_config(model, gc.clone()),
@@ -523,15 +564,14 @@ where
     );
 
     std::fs::create_dir_all("data").expect("Failed to create data directory");
-    dataset.save(&args.output_path).expect("Failed to save dataset");
+    dataset
+        .save(&args.output_path)
+        .expect("Failed to save dataset");
     println!("Saved to {}", args.output_path);
 }
 
 /// Estimate the value of the current game state using the neural network.
-fn estimate_value(
-    provider: &dyn InferenceProvider,
-    game: &GameState,
-) -> f32 {
+fn estimate_value(provider: &dyn InferenceProvider, game: &GameState) -> f32 {
     let current_piece = match &game.current_piece {
         Some(fp) => fp.piece,
         None => return 0.0,

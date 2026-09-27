@@ -33,7 +33,9 @@ fn oneshot_channel<T>() -> (OneshotSender<T>, OneshotReceiver<T>) {
         ready: Condvar::new(),
     });
     (
-        OneshotSender { inner: inner.clone() },
+        OneshotSender {
+            inner: inner.clone(),
+        },
         OneshotReceiver { inner },
     )
 }
@@ -53,7 +55,11 @@ impl<T> OneshotReceiver<T> {
             if let Some(val) = guard.take() {
                 return val;
             }
-            guard = self.inner.ready.wait(guard).expect("oneshot condvar wait failed");
+            guard = self
+                .inner
+                .ready
+                .wait(guard)
+                .expect("oneshot condvar wait failed");
         }
     }
 }
@@ -91,7 +97,9 @@ impl InferenceProvider for InferenceClient {
             context_data: context_data.to_vec(),
             response_tx,
         };
-        self.request_tx.send(request).expect("Inference server has shut down");
+        self.request_tx
+            .send(request)
+            .expect("Inference server has shut down");
         let response = response_rx.recv();
         (response.logits, response.value)
     }
@@ -178,8 +186,14 @@ fn inference_server_loop<B: Backend, M: GameModel<B>>(
         let batch_size = batch.len();
 
         // Build batched tensors
-        let board_flat: Vec<f32> = batch.iter().flat_map(|r| r.board_data.iter().copied()).collect();
-        let context_flat: Vec<f32> = batch.iter().flat_map(|r| r.context_data.iter().copied()).collect();
+        let board_flat: Vec<f32> = batch
+            .iter()
+            .flat_map(|r| r.board_data.iter().copied())
+            .collect();
+        let context_flat: Vec<f32> = batch
+            .iter()
+            .flat_map(|r| r.context_data.iter().copied())
+            .collect();
 
         let board_tensor = Tensor::<B, 1>::from_floats(board_flat.as_slice(), device)
             .reshape([batch_size, channels, rows, cols]);
@@ -190,18 +204,30 @@ fn inference_server_loop<B: Backend, M: GameModel<B>>(
         let (logits_batch, value_batch) = model.forward(board_tensor, context_tensor);
 
         // Extract results
-        let logits_data = logits_batch.into_data().to_vec::<f32>().expect("Failed to extract logits");
-        let value_data = value_batch.into_data().to_vec::<f32>().expect("Failed to extract values");
+        let logits_data = logits_batch
+            .into_data()
+            .to_vec::<f32>()
+            .expect("Failed to extract logits");
+        let value_data = value_batch
+            .into_data()
+            .to_vec::<f32>()
+            .expect("Failed to extract values");
 
         // Distribute results back to requesters
         for (i, request) in batch.into_iter().enumerate() {
             let start = i * num_actions;
             let end = start + num_actions;
             let logits = logits_data[start..end].to_vec();
-            let v_raw = if i < value_data.len() { value_data[i] } else { 0.0 };
+            let v_raw = if i < value_data.len() {
+                value_data[i]
+            } else {
+                0.0
+            };
             let value = model.postprocess_value(v_raw);
 
-            request.response_tx.send(InferenceResponse { logits, value });
+            request
+                .response_tx
+                .send(InferenceResponse { logits, value });
         }
     }
 }

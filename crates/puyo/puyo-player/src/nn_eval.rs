@@ -3,22 +3,20 @@ use burn::prelude::*;
 
 use puyo_core::config::GameConfig;
 use puyo_core::piece::Placement;
-use puyo_core::state::{
-    board_to_tensor_data, context_to_tensor_data, PuyoState,
-};
+use puyo_core::state::{board_to_tensor_data, context_to_tensor_data, PuyoState};
 use puyo_nn::model::PuyoNet;
 
 use az_framework::eval::Evaluator;
 use az_framework::mcts::{mcts_search, mcts_search_batched, InferenceProvider};
 use az_framework::model::GameModel;
 use az_framework::nn_eval::DirectInference;
-use az_framework::value_transform::value_inverse_transform;
 pub use az_framework::nn_eval::MctsConfig;
+use az_framework::value_transform::value_inverse_transform;
 
 const VALUE_SCALE: f32 = 15.0;
 
-use puyo_core::placement::{compute_valid_mask, index_to_placement};
 use crate::puyo_game::PuyoGame;
+use puyo_core::placement::{compute_valid_mask, index_to_placement};
 
 type InferBackend = NdArray;
 
@@ -82,10 +80,7 @@ pub struct NnEvaluator {
 }
 
 impl NnEvaluator {
-    pub fn new(
-        model: PuyoNet<InferBackend>,
-        device: <InferBackend as Backend>::Device,
-    ) -> Self {
+    pub fn new(model: PuyoNet<InferBackend>, device: <InferBackend as Backend>::Device) -> Self {
         Self {
             provider: DirectInference::new(PuyoGameModel::new(model), device),
             mcts_config: None,
@@ -99,7 +94,10 @@ impl NnEvaluator {
         game_config: GameConfig,
     ) -> Self {
         Self {
-            provider: DirectInference::new(PuyoGameModel::with_config(model, game_config.clone()), device),
+            provider: DirectInference::new(
+                PuyoGameModel::with_config(model, game_config.clone()),
+                device,
+            ),
             mcts_config: None,
             game_config,
         }
@@ -121,12 +119,8 @@ impl NnEvaluator {
     }
 }
 
-
 impl Evaluator<PuyoGame> for NnEvaluator {
-    fn find_best_move(
-        &self,
-        state: &PuyoState,
-    ) -> Option<(Placement, f64)> {
+    fn find_best_move(&self, state: &PuyoState) -> Option<(Placement, f64)> {
         let mask = compute_valid_mask(&state.board, &state.current);
         if !mask.iter().any(|&v| v) {
             return None;
@@ -153,13 +147,17 @@ impl Evaluator<PuyoGame> for NnEvaluator {
                 }
             }
             // Return Q value (average cumulative reward) as the score
-            return Some((index_to_placement(best_index, cols), q_values[best_index] as f64));
+            return Some((
+                index_to_placement(best_index, cols),
+                q_values[best_index] as f64,
+            ));
         }
 
         // Policy-only mode (fast, for WASM)
         let board_data = board_to_tensor_data(&state.board);
         let cfg = &state.board.config;
-        let context_data = context_to_tensor_data(cfg, &state.current, &state.next, &state.next_next);
+        let context_data =
+            context_to_tensor_data(cfg, &state.current, &state.next, &state.next_next);
 
         let (logits_vec, _value) = self.provider.infer(&board_data, &context_data);
 

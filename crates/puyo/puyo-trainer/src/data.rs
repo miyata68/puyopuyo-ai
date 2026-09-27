@@ -195,5 +195,4 @@ mod tests {
         assert_eq!(ctx[0], 0.0);
         assert_eq!(ctx[1], 1.0);
     }
-
 }

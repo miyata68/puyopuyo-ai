@@ -4,6 +4,7 @@ pub mod game;
 pub mod piece;
 pub mod placement;
 pub mod pvp;
+pub mod pvp_encoding;
 pub mod rand;
 pub mod score;
 pub mod state;

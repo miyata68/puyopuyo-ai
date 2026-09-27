@@ -4,9 +4,7 @@ use az_framework::game::Game;
 use puyo_core::board::ChainResult;
 use puyo_core::config::GameConfig;
 use puyo_core::piece::Placement;
-use puyo_core::state::{
-    board_to_tensor_data, context_to_tensor_data, PuyoState,
-};
+use puyo_core::state::{board_to_tensor_data, context_to_tensor_data, PuyoState};
 
 use puyo_core::placement::{
     compute_valid_mask, enumerate_placements, index_to_placement, placement_to_index,

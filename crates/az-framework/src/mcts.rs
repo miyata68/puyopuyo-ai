@@ -142,10 +142,7 @@ impl<G: Game> MctsTree<G> {
     }
 
     /// Expand the root node and return the value estimate.
-    fn expand_root(
-        &mut self,
-        provider: &dyn InferenceProvider,
-    ) -> f32 {
+    fn expand_root(&mut self, provider: &dyn InferenceProvider) -> f32 {
         let v = self.expand_node(self.root, provider);
         self.root_value = v;
         self.nodes[self.root].visit_count += 1;
@@ -228,7 +225,8 @@ impl<G: Game> MctsTree<G> {
         let sqrt_parent = parent_visits.sqrt();
         let c_puct = Self::dynamic_c_puct(parent_visits, c_puct_init, c_puct_base);
 
-        node.valid_mask.iter()
+        node.valid_mask
+            .iter()
             .enumerate()
             .filter(|(_, &is_valid)| is_valid)
             .map(|(action, _)| {
@@ -306,11 +304,7 @@ impl<G: Game> MctsTree<G> {
     }
 
     /// Expand a node: run the neural network and set priors + logits for valid actions.
-    fn expand_node(
-        &mut self,
-        node_id: usize,
-        provider: &dyn InferenceProvider,
-    ) -> f32 {
+    fn expand_node(&mut self, node_id: usize, provider: &dyn InferenceProvider) -> f32 {
         let state = &self.nodes[node_id].state;
 
         let board_data = G::encode_board(state);
@@ -397,10 +391,19 @@ impl<G: Game> MctsTree<G> {
             let phases_left = num_phases - phase;
             let sims_per_action = (budget_remaining / (phases_left * n_actions)).max(1);
 
-            budget_used += self.run_simulations(considered, budget_used, remaining_budget, sims_per_action, provider, config.c_puct_init, config.c_puct_base);
+            budget_used += self.run_simulations(
+                considered,
+                budget_used,
+                remaining_budget,
+                sims_per_action,
+                provider,
+                config.c_puct_init,
+                config.c_puct_base,
+            );
 
             let q_completed = compute_completed_q(self, &mask);
-            let sigma_bar = compute_sigma_bar(self, &q_completed, &mask, considered, config.c_visit);
+            let sigma_bar =
+                compute_sigma_bar(self, &q_completed, &mask, considered, config.c_visit);
 
             for &a in considered.iter() {
                 scores[a] = gumbels[a] + root_logits[a] + sigma_bar[a];
@@ -412,7 +415,15 @@ impl<G: Game> MctsTree<G> {
         }
 
         // Spend remaining budget on surviving action(s)
-        self.run_simulations(considered, budget_used, remaining_budget, usize::MAX, provider, config.c_puct_init, config.c_puct_base);
+        self.run_simulations(
+            considered,
+            budget_used,
+            remaining_budget,
+            usize::MAX,
+            provider,
+            config.c_puct_init,
+            config.c_puct_base,
+        );
 
         compute_completed_q(self, &mask)
     }
@@ -518,12 +529,7 @@ impl<G: Game> MctsTree<G> {
 
     /// Apply pre-computed NN results to a node. Returns the value.
     /// If the node was already expanded by a prior batch element, returns 0.0.
-    fn expand_node_with_result(
-        &mut self,
-        node_id: usize,
-        logits_vec: Vec<f32>,
-        value: f32,
-    ) -> f32 {
+    fn expand_node_with_result(&mut self, node_id: usize, logits_vec: Vec<f32>, value: f32) -> f32 {
         if self.nodes[node_id].expanded {
             return 0.0;
         }
@@ -574,8 +580,7 @@ impl<G: Game> MctsTree<G> {
             let (path, leaf_id) = self.select_path_to_leaf(action, c_puct_init, c_puct_base);
             self.apply_virtual_loss(&path, 1);
 
-            let needs_inference =
-                !self.nodes[leaf_id].terminal && !self.nodes[leaf_id].expanded;
+            let needs_inference = !self.nodes[leaf_id].terminal && !self.nodes[leaf_id].expanded;
             if needs_inference {
                 let (board, ctx) = self.encode_leaf_state(leaf_id);
                 inference_map.push(pending.len());
@@ -792,10 +797,7 @@ fn sample_gumbel(state: &mut u64, mix: u64) -> f32 {
 
 /// Compute completed Q-values for all valid root actions.
 /// Visited actions use actual Q from tree; unvisited actions use root value estimate.
-fn compute_completed_q<G: Game>(
-    tree: &MctsTree<G>,
-    mask: &[bool],
-) -> Vec<f32> {
+fn compute_completed_q<G: Game>(tree: &MctsTree<G>, mask: &[bool]) -> Vec<f32> {
     let num_actions = G::num_actions();
     let root = &tree.nodes[tree.root];
     (0..num_actions)
@@ -816,10 +818,7 @@ fn compute_completed_q<G: Game>(
 /// Min-max normalize Q-values to [0,1].
 /// Only indices where `mask[a]` is true are considered for min/max range.
 /// Returns 0.0 for masked-out actions, 0.5 when all considered values are equal.
-fn normalize_q_minmax(
-    q_values: &[f32],
-    mask: &[bool],
-) -> Vec<f32> {
+fn normalize_q_minmax(q_values: &[f32], mask: &[bool]) -> Vec<f32> {
     let num_actions = mask.len();
     let mut min_q = f32::INFINITY;
     let mut max_q = f32::NEG_INFINITY;
@@ -892,7 +891,8 @@ fn compute_sigma_bar<G: Game>(
     let num_actions = G::num_actions();
     // Find max visit count among root children
     let root = &tree.nodes[tree.root];
-    let n_max: f32 = considered.iter()
+    let n_max: f32 = considered
+        .iter()
         .filter_map(|&a| root.children[a].map(|cid| tree.nodes[cid].visit_count as f32))
         .fold(0.0f32, f32::max);
 
@@ -929,7 +929,10 @@ pub fn mcts_search<G: Game>(
     // 1. Expand root (1 NN evaluation)
     if config.num_simulations == 0 || tree.nodes[tree.root].terminal {
         let mask = &tree.nodes[tree.root].valid_mask;
-        return (masked_softmax(&vec![0.0f32; num_actions], mask), vec![0.0; num_actions]);
+        return (
+            masked_softmax(&vec![0.0f32; num_actions], mask),
+            vec![0.0; num_actions],
+        );
     }
     tree.expand_root(provider);
 
@@ -975,7 +978,8 @@ pub fn mcts_search<G: Game>(
     );
 
     // 5. Compute improved policy target
-    let improved_policy = compute_improved_policy(&root_logits, &q_completed, &mask, config.c_visit);
+    let improved_policy =
+        compute_improved_policy(&root_logits, &q_completed, &mask, config.c_visit);
 
     (improved_policy, tree.root_q_values())
 }
@@ -1115,7 +1119,11 @@ mod tests {
         let policy = compute_improved_policy(&logits, &q, &mask, 5.0);
 
         let sum: f32 = policy.iter().sum();
-        assert!((sum - 1.0).abs() < 1e-5, "Improved policy should sum to 1.0, got {}", sum);
+        assert!(
+            (sum - 1.0).abs() < 1e-5,
+            "Improved policy should sum to 1.0, got {}",
+            sum
+        );
         // Action 1 has highest Q, should have highest improved probability
         assert!(policy[1] > policy[0]);
         assert!(policy[1] > policy[2]);

@@ -42,10 +42,7 @@ pub fn seeded_piece(seed: u64, index: u64, num_colors: usize) -> Piece {
     let axis = ((axis_hash % num_colors as u64) as u8) + 1;
     let sat = ((sat_hash % num_colors as u64) as u8) + 1;
 
-    Piece::new(
-        PuyoColor::from_u8(axis),
-        PuyoColor::from_u8(sat),
-    )
+    Piece::new(PuyoColor::from_u8(axis), PuyoColor::from_u8(sat))
 }
 
 /// time_seed() を使ってランダムなピースを生成する。

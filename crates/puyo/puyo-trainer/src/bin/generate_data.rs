@@ -73,8 +73,7 @@ fn parse_args() -> Args {
 
             "--output" => {
                 i += 1;
-                result.output_path =
-                    next_val(i, "--output").clone();
+                result.output_path = next_val(i, "--output").clone();
             }
 
             "--max-moves" => {
@@ -100,10 +99,9 @@ fn parse_args() -> Args {
 
             "--num-colors" => {
                 i += 1;
-                result.num_colors =
-                    next_val(i, "--num-colors")
-                        .parse()
-                        .expect("--num-colors requires integer");
+                result.num_colors = next_val(i, "--num-colors")
+                    .parse()
+                    .expect("--num-colors requires integer");
             }
 
             "--threads" => {
@@ -175,10 +173,7 @@ struct GameResult {
     moves: usize,
 }
 
-fn play_one_game(
-    gc: GameConfig,
-    max_moves: usize,
-) -> GameResult {
+fn play_one_game(gc: GameConfig, max_moves: usize) -> GameResult {
     let evaluator = SimulationEvaluator;
 
     // 重要:
@@ -186,8 +181,7 @@ fn play_one_game(
     // CLIから作ったGameConfigを利用する。
     let mut game = GameState::new(gc);
 
-    let mut samples =
-        Vec::<Sample>::with_capacity(max_moves);
+    let mut samples = Vec::<Sample>::with_capacity(max_moves);
 
     let mut move_count = 0usize;
 
@@ -200,11 +194,10 @@ fn play_one_game(
             break;
         }
 
-        let current_piece =
-            match &game.current_piece {
-                Some(fp) => fp.piece,
-                None => break,
-            };
+        let current_piece = match &game.current_piece {
+            Some(fp) => fp.piece,
+            None => break,
+        };
 
         let puyo_state = PuyoState {
             board: game.board.clone(),
@@ -214,20 +207,16 @@ fn play_one_game(
         };
 
         // 配置前の局面を教師データにする。
-        let board_data =
-            PuyoGame::encode_board(&puyo_state);
+        let board_data = PuyoGame::encode_board(&puyo_state);
 
-        let context_data =
-            PuyoGame::encode_context(&puyo_state);
+        let context_data = PuyoGame::encode_context(&puyo_state);
 
         // ヒューリスティック教師AI。
-        let result =
-            evaluator.find_best_move(&puyo_state);
+        let result = evaluator.find_best_move(&puyo_state);
 
         match result {
             Some((placement, score)) => {
-                let action_index =
-                    placement_to_index(&placement) as u8;
+                let action_index = placement_to_index(&placement) as u8;
 
                 game.apply_placement(&placement);
 
@@ -256,25 +245,16 @@ fn play_one_game(
 fn main() {
     let args = parse_args();
 
-    let gc = GameConfig::new(
-        args.cols,
-        args.rows,
-        args.num_colors,
-    );
+    let gc = GameConfig::new(args.cols, args.rows, args.num_colors);
 
     // PuyoGame trait側でも同じconfigを使わせる。
     // OnceLockなのでプロセス中に1度だけ設定する。
     puyo_player::puyo_game::init_config(gc);
 
     // output先ディレクトリを作る。
-    if let Some(parent) =
-        Path::new(&args.output_path).parent()
-    {
+    if let Some(parent) = Path::new(&args.output_path).parent() {
         if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)
-                .expect(
-                    "Failed to create output directory",
-                );
+            std::fs::create_dir_all(parent).expect("Failed to create output directory");
         }
     }
 
@@ -284,36 +264,24 @@ fn main() {
         rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .build_global()
-            .expect(
-                "Failed to initialize Rayon thread pool",
-            );
+            .expect("Failed to initialize Rayon thread pool");
     }
 
-    let num_threads =
-        rayon::current_num_threads();
+    let num_threads = rayon::current_num_threads();
 
-    println!(
-        "Generating training data"
-    );
+    println!("Generating training data");
 
     println!(
         "Game config: cols={}, rows={}, num_colors={}",
-        gc.cols,
-        gc.rows,
-        gc.num_colors
+        gc.cols, gc.rows, gc.num_colors
     );
 
     println!(
         "Games: {}, max_moves={}, threads={}",
-        args.num_games,
-        args.max_moves,
-        num_threads
+        args.num_games, args.max_moves, num_threads
     );
 
-    println!(
-        "Output: {}",
-        args.output_path
-    );
+    println!("Output: {}", args.output_path);
 
     let start_time = Instant::now();
 
@@ -327,112 +295,69 @@ fn main() {
     // ゲーム単位で並列化
     // --------------------------------------------------
 
-    let results: Vec<GameResult> =
-        (0..args.num_games)
-            .into_par_iter()
-            .map(|_| {
-                let result =
-                    play_one_game(gc, args.max_moves);
+    let results: Vec<GameResult> = (0..args.num_games)
+        .into_par_iter()
+        .map(|_| {
+            let result = play_one_game(gc, args.max_moves);
 
-                let done =
-                    games_done.fetch_add(
-                        1,
-                        Ordering::Relaxed,
-                    ) + 1;
+            let done = games_done.fetch_add(1, Ordering::Relaxed) + 1;
 
-                total_samples.fetch_add(
-                    result.samples.len() as u64,
-                    Ordering::Relaxed,
-                );
+            total_samples.fetch_add(result.samples.len() as u64, Ordering::Relaxed);
 
-                total_chain_sum.fetch_add(
-                    result.max_chain as u64,
-                    Ordering::Relaxed,
-                );
+            total_chain_sum.fetch_add(result.max_chain as u64, Ordering::Relaxed);
 
-                total_score.fetch_add(
-                    result.score as u64,
-                    Ordering::Relaxed,
-                );
+            total_score.fetch_add(result.score as u64, Ordering::Relaxed);
 
-                total_max_chain.fetch_max(
-                    result.max_chain as u64,
-                    Ordering::Relaxed,
-                );
+            total_max_chain.fetch_max(result.max_chain as u64, Ordering::Relaxed);
 
-                // ログがボトルネックにならないよう
-                // 100ゲーム単位で表示。
-                if done % 100 == 0
-                    || done == args.num_games
-                {
-                    let elapsed =
-                        start_time
-                            .elapsed()
-                            .as_secs_f64();
+            // ログがボトルネックにならないよう
+            // 100ゲーム単位で表示。
+            if done % 100 == 0 || done == args.num_games {
+                let elapsed = start_time.elapsed().as_secs_f64();
 
-                    let games_per_sec =
-                        done as f64 / elapsed;
+                let games_per_sec = done as f64 / elapsed;
 
-                    let remaining =
-                        args.num_games - done;
+                let remaining = args.num_games - done;
 
-                    let eta =
-                        if games_per_sec > 0.0 {
-                            remaining as f64
-                                / games_per_sec
-                        } else {
-                            0.0
-                        };
+                let eta = if games_per_sec > 0.0 {
+                    remaining as f64 / games_per_sec
+                } else {
+                    0.0
+                };
 
-                    let samples =
-                        total_samples.load(
-                            Ordering::Relaxed,
-                        );
+                let samples = total_samples.load(Ordering::Relaxed);
 
-                    let chain_sum =
-                        total_chain_sum.load(
-                            Ordering::Relaxed,
-                        );
+                let chain_sum = total_chain_sum.load(Ordering::Relaxed);
 
-                    let avg_chain =
-                        chain_sum as f64
-                            / done as f64;
+                let avg_chain = chain_sum as f64 / done as f64;
 
-                    let max_chain =
-                        total_max_chain.load(
-                            Ordering::Relaxed,
-                        );
+                let max_chain = total_max_chain.load(Ordering::Relaxed);
 
-                    let score_sum =
-                        total_score.load(
-                            Ordering::Relaxed,
-                        );
+                let score_sum = total_score.load(Ordering::Relaxed);
 
-                    let avg_score =
-                        score_sum as f64
-                            / done as f64;
+                let avg_score = score_sum as f64 / done as f64;
 
-                    println!(
-                        "[{:>6}/{}] \
+                println!(
+                    "[{:>6}/{}] \
                          samples: {:>8} | \
                          chain(max/avg): {}/{:.2} | \
                          avg_score: {:.0} | \
                          {:.2} games/s | \
                          ETA: {:.0}s",
-                        done,
-                        args.num_games,
-                        samples,
-                        max_chain,
-                        avg_chain,
-                        avg_score,
-                        games_per_sec,
-                        eta,
-                    );
-                }
+                    done,
+                    args.num_games,
+                    samples,
+                    max_chain,
+                    avg_chain,
+                    avg_score,
+                    games_per_sec,
+                    eta,
+                );
+            }
 
-                result
-            })
-            .collect();
+            result
+        })
+        .collect();
 
     // --------------------------------------------------
     // 並列処理後にDatasetをまとめる
@@ -445,72 +370,36 @@ fn main() {
     let mut final_move_sum = 0usize;
 
     for result in results {
-        final_max_chain =
-            final_max_chain.max(result.max_chain);
+        final_max_chain = final_max_chain.max(result.max_chain);
 
-        final_score_sum +=
-            result.score as u64;
+        final_score_sum += result.score as u64;
 
-        final_move_sum +=
-            result.moves;
+        final_move_sum += result.moves;
 
-        dataset.samples.extend(
-            result.samples
-        );
+        dataset.samples.extend(result.samples);
     }
 
-    let elapsed =
-        start_time.elapsed().as_secs_f64();
+    let elapsed = start_time.elapsed().as_secs_f64();
 
-    let avg_score =
-        final_score_sum as f64
-            / args.num_games as f64;
+    let avg_score = final_score_sum as f64 / args.num_games as f64;
 
-    let avg_moves =
-        final_move_sum as f64
-            / args.num_games as f64;
+    let avg_moves = final_move_sum as f64 / args.num_games as f64;
 
-    let games_per_sec =
-        args.num_games as f64
-            / elapsed;
+    let games_per_sec = args.num_games as f64 / elapsed;
 
     println!();
     println!("Data generation complete");
-    println!(
-        "Games       : {}",
-        args.num_games
-    );
-    println!(
-        "Samples     : {}",
-        dataset.samples.len()
-    );
-    println!(
-        "Max chain   : {}",
-        final_max_chain
-    );
-    println!(
-        "Avg score   : {:.1}",
-        avg_score
-    );
-    println!(
-        "Avg moves   : {:.1}",
-        avg_moves
-    );
-    println!(
-        "Elapsed     : {:.2}s",
-        elapsed
-    );
-    println!(
-        "Throughput  : {:.2} games/s",
-        games_per_sec
-    );
+    println!("Games       : {}", args.num_games);
+    println!("Samples     : {}", dataset.samples.len());
+    println!("Max chain   : {}", final_max_chain);
+    println!("Avg score   : {:.1}", avg_score);
+    println!("Avg moves   : {:.1}", avg_moves);
+    println!("Elapsed     : {:.2}s", elapsed);
+    println!("Throughput  : {:.2} games/s", games_per_sec);
 
     dataset
         .save(&args.output_path)
         .expect("Failed to save dataset");
 
-    println!(
-        "Saved to {}",
-        args.output_path
-    );
+    println!("Saved to {}", args.output_path);
 }

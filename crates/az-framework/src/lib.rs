@@ -1,7 +1,6 @@
 pub mod data;
 pub mod eval;
 pub mod game;
-pub mod value_transform;
 #[cfg(feature = "nn")]
 pub mod inference_server;
 #[cfg(feature = "nn")]
@@ -10,3 +9,4 @@ pub mod mcts;
 pub mod model;
 #[cfg(feature = "nn")]
 pub mod nn_eval;
+pub mod value_transform;

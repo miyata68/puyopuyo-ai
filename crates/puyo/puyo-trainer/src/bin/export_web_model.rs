@@ -3,12 +3,7 @@ use std::path::Path;
 
 use burn::backend::ndarray::NdArray;
 use burn::prelude::*;
-use burn::record::{
-    BinBytesRecorder,
-    BinFileRecorder,
-    FullPrecisionSettings,
-    Recorder,
-};
+use burn::record::{BinBytesRecorder, BinFileRecorder, FullPrecisionSettings, Recorder};
 
 use puyo_core::config::GameConfig;
 use puyo_nn::model::{PuyoNet, PuyoNetConfig};
@@ -72,29 +67,25 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("Loading trained model using NdArray backend...");
 
-    let model: PuyoNet<InferBackend> = net_config
-        .init::<InferBackend>(&device)
-        .load_file(
-            model_base_path,
-            &BinFileRecorder::<FullPrecisionSettings>::new(),
-            &device,
-        )?;
+    let model: PuyoNet<InferBackend> = net_config.init::<InferBackend>(&device).load_file(
+        model_base_path,
+        &BinFileRecorder::<FullPrecisionSettings>::new(),
+        &device,
+    )?;
 
     println!("Model loaded successfully.");
 
     println!("Serializing with BinBytesRecorder...");
 
-    let recorder =
-        BinBytesRecorder::<FullPrecisionSettings>::default();
+    let recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
 
     let record = model.into_record();
 
-    let bytes =
-        <BinBytesRecorder<FullPrecisionSettings> as Recorder<InferBackend>>::record(
-            &recorder,
-            record,
-            (),
-        )?;
+    let bytes = <BinBytesRecorder<FullPrecisionSettings> as Recorder<InferBackend>>::record(
+        &recorder,
+        record,
+        (),
+    )?;
 
     if let Some(parent) = Path::new(output_path).parent() {
         std::fs::create_dir_all(parent)?;

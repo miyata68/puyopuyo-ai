@@ -80,14 +80,24 @@ impl<B: Backend, M: GameModel<B>> InferenceProvider for DirectInference<B, M> {
 
         let board_tensor = Tensor::<B, 1>::from_floats(board_data, &self.device)
             .reshape([1, channels, rows, cols]);
-        let context_tensor = Tensor::<B, 1>::from_floats(context_data, &self.device)
-            .reshape([1, context_size]);
+        let context_tensor =
+            Tensor::<B, 1>::from_floats(context_data, &self.device).reshape([1, context_size]);
 
         let (logits, value) = self.model.forward(board_tensor, context_tensor);
 
-        let logits_vec = logits.into_data().to_vec::<f32>().expect("Failed to extract logits tensor");
-        let value_scalar = value.into_data().to_vec::<f32>().expect("Failed to extract value tensor");
-        let v_raw = if value_scalar.is_empty() { 0.0 } else { value_scalar[0] };
+        let logits_vec = logits
+            .into_data()
+            .to_vec::<f32>()
+            .expect("Failed to extract logits tensor");
+        let value_scalar = value
+            .into_data()
+            .to_vec::<f32>()
+            .expect("Failed to extract value tensor");
+        let v_raw = if value_scalar.is_empty() {
+            0.0
+        } else {
+            value_scalar[0]
+        };
         let v = self.model.postprocess_value(v_raw);
 
         (logits_vec, v)

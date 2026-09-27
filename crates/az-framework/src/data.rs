@@ -27,7 +27,9 @@ impl Default for AlphaZeroDataset {
 
 impl AlphaZeroDataset {
     pub fn new() -> Self {
-        Self { samples: Vec::new() }
+        Self {
+            samples: Vec::new(),
+        }
     }
 
     pub fn save(&self, path: &str) -> std::io::Result<()> {

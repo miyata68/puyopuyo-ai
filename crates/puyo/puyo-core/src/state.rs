@@ -39,7 +39,12 @@ pub fn board_to_tensor_data(board: &Board) -> Vec<f32> {
 
 /// 3ピース（current, next, next_next）をフラット f32 配列に変換する。
 /// 各ピースの axis_color, satellite_color を num_colors 次元 one-hot でエンコード。
-pub fn pieces_to_tensor_data(config: &GameConfig, current: &Piece, next: &Piece, next_next: &Piece) -> Vec<f32> {
+pub fn pieces_to_tensor_data(
+    config: &GameConfig,
+    current: &Piece,
+    next: &Piece,
+    next_next: &Piece,
+) -> Vec<f32> {
     let num_colors = config.num_colors;
     let piece_tensor_size = config.piece_tensor_size();
     let mut data = vec![0.0f32; piece_tensor_size];

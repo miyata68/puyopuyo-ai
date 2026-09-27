@@ -5,14 +5,14 @@ use burn::prelude::*;
 use burn::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
 
 use puyo_core::config::GameConfig;
+use puyo_core::game::{GamePhase, GameState};
+use puyo_core::state::PuyoState;
+use puyo_nn::model::{PuyoNet, PuyoNetConfig};
 use puyo_player::eval::SimulationEvaluator;
 use puyo_player::nn_eval::{MctsConfig, NnEvaluator};
 use puyo_player::placement::enumerate_placements;
 use puyo_player::puyo_game::{self, PuyoGame};
 use puyo_player::Evaluator;
-use puyo_core::game::{GamePhase, GameState};
-use puyo_core::state::PuyoState;
-use puyo_nn::model::{PuyoNet, PuyoNetConfig};
 
 type InferBackend = NdArray;
 
@@ -73,13 +73,7 @@ impl WasmGame {
             Err(_) => return false,
         };
         let model: PuyoNet<InferBackend> = config.init(&device).load_record(record);
-        self.evaluator = Box::new(
-            NnEvaluator::with_game_config(
-                model,
-                device,
-                self.config,
-            )
-        );
+        self.evaluator = Box::new(NnEvaluator::with_game_config(model, device, self.config));
         true
     }
 
@@ -104,12 +98,7 @@ impl WasmGame {
         };
 
         self.evaluator = Box::new(
-            NnEvaluator::with_game_config(
-                model,
-                device,
-                self.config,
-            )
-            .with_mcts(mcts_config)
+            NnEvaluator::with_game_config(model, device, self.config).with_mcts(mcts_config),
         );
 
         true
@@ -263,10 +252,7 @@ impl WasmGame {
 
         match result {
             Some((placement, score)) => {
-                let mut bytes = vec![
-                    placement.col as u8,
-                    placement.orientation.as_u8(),
-                ];
+                let mut bytes = vec![placement.col as u8, placement.orientation.as_u8()];
                 bytes.extend_from_slice(&score.to_le_bytes());
                 bytes
             }
