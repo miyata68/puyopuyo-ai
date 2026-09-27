@@ -5,12 +5,30 @@ use puyo_core::placement::placement_to_index;
 use puyo_core::pvp::{MatchResult, MatchState, PlayerId};
 use puyo_core::pvp_encoding::*;
 use puyo_player::pvp_search::*;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TemperatureSchedule {
+    PieceIndex(u64),
+    LegacyTick(u64),
+}
+impl TemperatureSchedule {
+    pub fn temperature(self, state: &MatchState, id: PlayerId, initial: f32) -> f32 {
+        let active = match self {
+            Self::PieceIndex(limit) => state.players[id.index()].piece_index < limit,
+            Self::LegacyTick(limit) => state.tick < limit,
+        };
+        if active {
+            initial
+        } else {
+            0.
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub struct SelfPlayConfig {
     pub search: PvpSearchConfig,
     pub max_ticks: u64,
     pub temperature: f32,
-    pub temperature_drop_tick: u64,
+    pub temperature_schedule: TemperatureSchedule,
     pub streams: [u8; 2],
 }
 impl Default for SelfPlayConfig {
@@ -19,7 +37,7 @@ impl Default for SelfPlayConfig {
             search: Default::default(),
             max_ticks: 2000,
             temperature: 1.,
-            temperature_drop_tick: 100,
+            temperature_schedule: TemperatureSchedule::PieceIndex(20),
             streams: [0, 1],
         }
     }
@@ -30,6 +48,8 @@ pub struct MatchMetrics {
     pub truncated: bool,
     pub ticks: u64,
     pub samples: [usize; 2],
+    pub sampled_decisions: [u64; 2],
+    pub argmax_decisions: [u64; 2],
     pub max_chain: [u32; 2],
     pub garbage_sent: u64,
     pub garbage_offset: u64,
@@ -74,6 +94,8 @@ pub fn play_match(
         truncated: false,
         ticks: 0,
         samples: [0; 2],
+        sampled_decisions: [0; 2],
+        argmax_decisions: [0; 2],
         max_chain: [0; 2],
         garbage_sent: 0,
         garbage_offset: 0,
@@ -98,11 +120,15 @@ pub fn play_match(
                     &config.search,
                     derive_seed(seed, root.tick, stream, SeedPurpose::RootNoise),
                 )?;
-                let temperature = if root.tick < config.temperature_drop_tick {
-                    config.temperature
+                let temperature =
+                    config
+                        .temperature_schedule
+                        .temperature(root, id, config.temperature);
+                if temperature > 0. {
+                    metrics.sampled_decisions[id.index()] += 1;
                 } else {
-                    0.
-                };
+                    metrics.argmax_decisions[id.index()] += 1;
+                }
                 actions[id.index()] = Some(result.select_action(
                     temperature,
                     derive_seed(seed, root.tick, stream, SeedPurpose::ActionSample),

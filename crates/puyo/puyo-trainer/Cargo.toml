@@ -43,3 +43,7 @@ path = "src/bin/pvp_self_play.rs"
 [[bin]]
 name = "train-pvp"
 path = "src/bin/train_pvp.rs"
+
+[[bin]]
+name = "pvp-eval"
+path = "src/bin/pvp_eval.rs"

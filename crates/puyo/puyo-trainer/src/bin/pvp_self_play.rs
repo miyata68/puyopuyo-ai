@@ -34,7 +34,7 @@ where
         },
         max_ticks: args.number("--max-ticks", "2000")?,
         temperature: args.number("--temperature", "1.0")?,
-        temperature_drop_tick: args.number("--temperature-drop-tick", "100")?,
+        temperature_schedule: args.temperature_schedule()?,
         streams: if swap { [1, 0] } else { [0, 1] },
     };
     config.search.validate()?;
@@ -43,7 +43,11 @@ where
     if !std::path::Path::new(&format!("{model_path}.bin")).exists() {
         save_model(net.clone(), &meta, &model_path)?;
     }
-    println!("root_noise={} temperature={} temperature_drop_tick={} streams={:?} simulations={} shared_model=true",noise,config.temperature,config.temperature_drop_tick,config.streams,config.search.simulations);
+    let (schedule, limit_name, limit) = match config.temperature_schedule {
+        TemperatureSchedule::PieceIndex(n) => ("piece_index", "temperature_drop_piece", n),
+        TemperatureSchedule::LegacyTick(n) => ("legacy_tick", "temperature_drop_tick", n),
+    };
+    println!("root_noise={} temperature={} temperature_schedule={schedule} {limit_name}={limit} streams={:?} simulations={} shared_model=true",noise,config.temperature,config.streams,config.search.simulations);
     let client = start_inference_server::<B, _>(PvpGameModel { net }, device, batch);
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads)
@@ -72,6 +76,8 @@ where
     let mut dataset = PvpAlphaZeroDataset::default();
     let mut wins = [0usize; 4];
     let mut samples = [0usize; 2];
+    let mut sampled = [0u64; 2];
+    let mut argmax = [0u64; 2];
     let mut ticks = 0;
     let mut chains = [0u64; 2];
     let mut max_chain = [0u32; 2];
@@ -94,6 +100,8 @@ where
         ticks += m.ticks;
         for id in 0..2 {
             samples[id] += m.samples[id];
+            sampled[id] += m.sampled_decisions[id];
+            argmax[id] += m.argmax_decisions[id];
             chains[id] += m.max_chain[id] as u64;
             max_chain[id] = max_chain[id].max(m.max_chain[id]);
         }
@@ -130,7 +138,7 @@ where
     if long_symmetric * 100 >= games * 95 {
         eprintln!("WARNING: at least 95% of games remained symmetric for >50 ticks");
     }
-    println!("dataset={output}");
+    println!("sampled_decisions={sampled:?} argmax_decisions={argmax:?} dataset={output}");
     Ok(())
 }
 fn main() {
@@ -144,6 +152,7 @@ fn main() {
             "--max-ticks",
             "--temperature",
             "--temperature-drop-tick",
+            "--temperature-drop-piece",
             "--root-noise",
             "--model-init-seed",
             "--backend",

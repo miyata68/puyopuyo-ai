@@ -80,9 +80,9 @@ mix(mix(match_seed) + mix(tick) + stream*3 + purpose)
 
 rootでは合法手ごとにGumbel乱数を生成し、softmaxでnoise分布を作る。`0.75*NN prior + 0.25*noise`で混合する。Dirichletではなく、追加の分布/RNG依存を不要にするGumbel-based explorationを選択した。Dirichlet alpha=0.30とは分布が異なり、その同一性を主張しない。無効化は`--root-noise false`。
 
-Action選択は序盤`N(a)^(1/temperature)`を正規化した分布から別purposeの乱数でsampling。温度1.0、100Tick以降0が既定。温度0は最大visitを選ぶ。評価は`--root-noise false --temperature 0`。同じ手になる偶然は許す。異なる手を強制しない。
+Action選択は序盤`N(a)^(1/temperature)`を正規化した分布から別purposeの乱数でsampling。温度1.0、各playerのpiece_indexが20以上で0が既定。同じTickでも両者の温度は異なり得る。旧--temperature-drop-tickは警告付きの互換オプションで、新optionとの併用はエラー。温度0は最大visitを選ぶ。評価は`--root-noise false --temperature 0`。同じ手になる偶然は許す。異なる手を強制しない。
 
-自己対局はTick開始stateを不変参照して両方のsearchを完了させ、その後一度だけstepする。P1の実行ActionをP2 searchへ見せない。
+search_with_providersはSelfのprior/leaf Valueと、相手のcached baseline/forced Tick policyに別providerを使用する。既存searchは同じproviderを両方に渡すwrapperである。自己対局はTick開始stateを不変参照して両方のsearchを完了させ、その後一度だけstepする。P1の実行ActionをP2 searchへ見せない。
 
 ## Datasetと打ち切り
 
@@ -98,6 +98,8 @@ max_ticks既定2000。到達時はエンジンのMatchResultを変更せず、se
 
 `train-pvp`は別binary。policy CE＋value_loss_weight×raw Value MSE。重み既定1.0は[-1,1]の勝敗誤差を標準の係数1で学習する初期設定で、CLI変更可能。softmaxから除外するのはlegal_mask=falseだけであり、未訪問の合法手（教師確率0）は除外しない。
 
+複数datasetのReplay Window、安定したtrain/validation split、step 0/定期/最終評価とModel-vs-Model比較は[16-pvp-training-evaluation.md](./16-pvp-training-evaluation.md)を参照。train-pvpは単一--dataと複数--data-pathsを受け付ける。既定validation_fraction=0.10で、空のtrain/validationはエラー。validationへ色置換は適用しない。
+
 Adam、learning_rate=0.001、1000steps、batch128を既定とする。seed付きsamplingでバッチと色置換を選択。学習後はvalid()モデルとmetadataを保存する。新モデルから次のself-playを実行可能。optimizer状態は保存せず、再開時はAdam状態を初期化する。
 
 ## CLI（PowerShell）
@@ -109,7 +111,7 @@ Set-Location C:\work\puyopuyo\puyopuyo-ai
 cargo run --release -p puyo-trainer --no-default-features --bin pvp-self-play -- `
   --games 100 --simulations 64 --model-path artifacts/pvp/puyo_pvp_model `
   --output data/pvp/pvp_alphazero_iter_001.bin --seed-offset 100000 `
-  --max-ticks 2000 --temperature 1.0 --temperature-drop-tick 100 `
+  --max-ticks 2000 --temperature 1.0 --temperature-drop-piece 20 `
   --root-noise true --model-init-seed 42 --backend cpu
 
 cargo run --release -p puyo-trainer --no-default-features --bin train-pvp -- `

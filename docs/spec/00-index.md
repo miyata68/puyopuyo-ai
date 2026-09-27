@@ -23,3 +23,4 @@ AIが算出した「次の一手」を見て、連鎖の組み方を学習でき
 | [13-trainer.md](./13-trainer.md) | 訓練パイプライン |
 | [14-pvp-tick-engine.md](./14-pvp-tick-engine.md) | 決定論的2人対戦Tickエンジン |
 | [15-pvp-alphazero.md](./15-pvp-alphazero.md) | PvP NN・独立探索・勝敗教師・自己対局学習 |
+| [16-pvp-training-evaluation.md](./16-pvp-training-evaluation.md) | 配置数温度・Replay Window・Validation・モデル間対戦評価 |

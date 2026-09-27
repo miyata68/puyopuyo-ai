@@ -212,6 +212,7 @@ impl Node {
         s: MatchState,
         id: PlayerId,
         provider: &dyn InferenceProvider,
+        opponent_provider: &dyn InferenceProvider,
         policy: &dyn OpponentPolicy,
     ) -> Result<Self, String> {
         let terminal_value = s.outcome_for(id);
@@ -226,7 +227,7 @@ impl Node {
             (
                 masked_softmax(&logits, &mask),
                 value,
-                policy.action(provider, &s, opponent(id))?,
+                policy.action(opponent_provider, &s, opponent(id))?,
             )
         };
         Ok(Self {
@@ -300,7 +301,25 @@ impl PvpSearchV1 {
         config: &PvpSearchConfig,
         seed: u64,
     ) -> Result<PvpSearchResult, String> {
-        Self::search_with_opponent(state, id, provider, config, seed, &MaskedArgmax)
+        Self::search_with_providers(state, id, provider, provider, config, seed)
+    }
+    pub fn search_with_providers(
+        state: &MatchState,
+        id: PlayerId,
+        self_provider: &dyn InferenceProvider,
+        opponent_provider: &dyn InferenceProvider,
+        config: &PvpSearchConfig,
+        seed: u64,
+    ) -> Result<PvpSearchResult, String> {
+        Self::search_impl(
+            state,
+            id,
+            self_provider,
+            opponent_provider,
+            config,
+            seed,
+            &MaskedArgmax,
+        )
     }
     pub fn search_with_opponent(
         state: &MatchState,
@@ -310,8 +329,26 @@ impl PvpSearchV1 {
         seed: u64,
         opponent_policy: &dyn OpponentPolicy,
     ) -> Result<PvpSearchResult, String> {
+        Self::search_impl(state, id, provider, provider, config, seed, opponent_policy)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn search_impl(
+        state: &MatchState,
+        id: PlayerId,
+        provider: &dyn InferenceProvider,
+        opponent_provider: &dyn InferenceProvider,
+        config: &PvpSearchConfig,
+        seed: u64,
+        opponent_policy: &dyn OpponentPolicy,
+    ) -> Result<PvpSearchResult, String> {
         config.validate()?;
-        let mut root = Node::expand(state.clone(), id, provider, opponent_policy)?;
+        let mut root = Node::expand(
+            state.clone(),
+            id,
+            provider,
+            opponent_provider,
+            opponent_policy,
+        )?;
         if root.terminal {
             return Ok(PvpSearchResult {
                 policy: [0.; NUM_ACTIONS],
@@ -380,11 +417,11 @@ impl PvpSearchV1 {
                     advance_until_decision(
                         &mut s,
                         id,
-                        provider,
+                        opponent_provider,
                         opponent_policy,
                         config.forced_tick_limit,
                     )?;
-                    let child = Node::expand(s, id, provider, opponent_policy)?;
+                    let child = Node::expand(s, id, provider, opponent_provider, opponent_policy)?;
                     let v = child.value;
                     let index = nodes.len();
                     nodes.push(child);
